@@ -8,11 +8,12 @@
 #include "tremo_uart.h"
 #include "tremo_gpio.h"
 #include "tremo_rcc.h"
+#include "tremo_pwr.h"
 #include "tremo_delay.h"
 #include "utilities.h"
 #include "gpio.h"
 #include "uart.h"
-
+#include "radio.h"
 
 Gpio_t Led1; //PA4
 Gpio_t Led2; //PA5
@@ -25,6 +26,8 @@ Uart_t Uart0; //PB0 PB1
 Spi_t Spi1; //PB10 PB11 PB8 PB9
 I2c_t I2c1; //PB14 PB15s
 I2c_t I2c2; //PC2 PC3
+
+extern const struct Radio_s Radio;
 
 void LoracInit() {
     rcc_enable_peripheral_clk(RCC_PERIPHERAL_LORA, false);
@@ -75,8 +78,6 @@ void BoardInitMcu() {
 
   delay_init();
 
-  LpmSetOffMode(LPM_UART_TX_ID, DISABLE);
-
   I2cMcuInit(&I2c1, I2C_1, PB_14, PB_15);
   I2cMcuFormat(&I2c1, MODE_I2C, I2C_DUTY_CYCLE_2, true, I2C_ACK_ADD_7_BIT, 100000);
   I2cMcuInit(&I2c2, I2C_2, PC_2, PC_3);
@@ -88,9 +89,11 @@ void BoardInitPeriph() {
 }
 
 void BoardLowPowerHandler() {
-  __disable_irq( );
-  LpmEnterLowPower( );
-  __enable_irq( );
+  if(Radio.GetStatus() != RF_IDLE)
+        return;
+    
+    rtc_check_syn();
+    pwr_deepsleep_wfi(PWR_LP_MODE_STOP3);
 }
 
 void BoardCriticalSectionBegin(uint32_t *mask) {
